@@ -4,46 +4,68 @@ LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
 unsigned long tick;
 unsigned long currentTime;
-byte hours;
-byte minutes;
-byte seconds;
+byte hours = 0;
+byte minutes = 0;
+byte seconds = 0;
 byte day = 1;
-byte dayOfWeek = 0;
+byte dayOfWeek = 2;
+
 byte mode = 0;
 
 void setup() {
   lcd.begin(16, 2);
+  lcd.setCursor(0,0);
+  lcd.print(String(5, 6));
 }
 
 void loop() {
   int buttons = analogRead(A1);
   currentTime = millis();
   if(currentTime - tick >= 1000){
-    seconds++;
-    tick = currentTime;
-    if(seconds == 60){
-      seconds = 0;
-      minutes++;
+    updateTime();
+  }
+  if (buttons > 600 && buttons < 700){
+    mode++;
+    if(mode == 4){
+      mode = 0;
     }
-    if(minutes == 60){
-      minutes = 0;
-      hours++;
-    }
-    if(hours == 24){
-      hours = 0;
-      dayOfWeek++;
-      day++;
-    }
-    if(dayOfWeek == 8){
-      dayOfWeek = 0;
-    }
-    if(day == 32){
-      day = 0;
-    }
-    if(mode == 0){
-      displayTime(1);
-      displayDate();
-    }
+  }
+  else if (buttons > 500 && buttons < 600){
+    
+  }
+  else if (buttons < 50){
+    
+  }
+  else{
+    
+  }
+}
+
+void updateTime(){
+  seconds++;
+  tick = currentTime;
+  if(seconds == 60){
+    seconds = 0;
+    minutes++;
+  }
+  if(minutes == 60){
+    minutes = 0;
+    hours++;
+  }
+  if(hours == 24){
+    hours = 0;
+    dayOfWeek++;
+    day++;
+    displayDate();
+  }
+  if(dayOfWeek == 8){
+    dayOfWeek = 0;
+  }
+  if(day == 32){
+    day = 0;
+  }
+  if(mode == 0){
+    displayTime(1);
   }
 }
 
@@ -74,9 +96,7 @@ void displayDate(){
   }
   lcd.setCursor(10, 0);
   if(day < 10){
-    lcd.print(" ");
-    lcd.setCursor(11, 0);
-    lcd.print(day);
+    lcd.print(String(" " + (String)day));
   }
   else{
     lcd.print(day);
@@ -86,9 +106,7 @@ void displayDate(){
 void displayTime(int row){
   lcd.setCursor(0, row);
   if(hours < 10){
-      lcd.print("0");
-      lcd.setCursor(1, row);
-      lcd.print(hours);
+      lcd.print(String("0" + (String)hours));
     }
   else{
     lcd.print(hours);
@@ -97,9 +115,7 @@ void displayTime(int row){
   lcd.print(":");
   lcd.setCursor(3, row);
   if(minutes < 10){
-    lcd.print("0");
-    lcd.setCursor(4, row);
-    lcd.print(minutes);
+    lcd.print(String("0" + (String)minutes));
   }
   else{
     lcd.print(minutes);
@@ -108,9 +124,7 @@ void displayTime(int row){
   lcd.print(":");
   lcd.setCursor(6, row);
   if(seconds < 10){
-    lcd.print("0");
-    lcd.setCursor(7, row);
-    lcd.print(seconds);
+    lcd.print(String("0" + (String)seconds));
   }
   else{
     lcd.print(seconds);
