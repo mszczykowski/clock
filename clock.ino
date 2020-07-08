@@ -22,8 +22,8 @@ struct Stopwatch {
   byte centiSeconds;
 } stopwatch;
 
-boolean wasButtonRelased;
 unsigned long currentTime;
+unsigned long debounce;
 byte mode;
 byte set;
 
@@ -65,26 +65,27 @@ void loop() {
       }
     }
   }
+  if (mode == 3 && currentTime - clock.tick >= 500) {
+    blink();
+  }
+  if (currentTime - debounce < 650) {
+    buttons = 1023;
+  }
+  if(buttons < 900){
+    debounce = millis();
+  }
   if (buttons > 600 && buttons < 700) {
-    if(wasButtonRelased){
       mode++;
       if (mode == 4) {
         mode = 0;
       }
       setDisplay();
-      wasButtonRelased = false;
-    }
   }
   else if (buttons > 500 && buttons < 600) {
-    wasButtonRelased = false;
-    startSetBtn(mode);
+    startSetBtn();
   }
   else if (buttons < 50) {
-    wasButtonRelased = false;
-    resetSelectBtn(mode);
-  }
-  else {
-    wasButtonRelased = true;
+    resetSelectBtn();
   }
 }
 
@@ -107,8 +108,8 @@ void resetStopwatch() {
   displayCentiSeconds(stopwatch.centiSeconds, 1);
 }
 
-void startSetBtn(byte m) {
-  switch (m) {
+void startSetBtn() {
+  switch (mode) {
     case 0:
 
       break;
@@ -119,13 +120,13 @@ void startSetBtn(byte m) {
 
       break;
     case 3:
-
+      setTime();
       break;
   }
 }
 
-void resetSelectBtn(byte m) {
-  switch (m) {
+void resetSelectBtn() {
+  switch (mode) {
     case 0:
 
       break;
@@ -140,18 +141,63 @@ void resetSelectBtn(byte m) {
       if(set == 5){
         set = 0;
       }
-      higlight();
       break;
   }
 }
 
-void higlight(){
+void blink(){
   switch(set){
     case 0:
-      lcd.setCursor(1, 0);
-      lcd.blink();
-      lcd.setCursor(1, 1);
-      lcd.blink();
+      lcd.setCursor(0, 1);
+      lcd.print("  ");
+      break;
+    case 1:
+      lcd.setCursor(3, 1);
+      lcd.print("  ");
+      break;
+    case 2:
+      lcd.setCursor(6, 1);
+      lcd.print("  ");
+      break;
+    case 3:
+      lcd.setCursor(0, 0);
+      lcd.print("         ");
+      break;
+    case 4:
+      lcd.setCursor(10, 0);
+      lcd.print("  ");
+      break;
+  }
+}
+
+void setTime(){
+  switch(set){
+    case 0:
+      clock.t.hours++;
+      if(clock.t.hours == 24){
+        clock.t.hours = 0;
+      }
+      break;
+    case 1:
+      clock.t.minutes++;
+      if(clock.t.minutes == 60){
+        clock.t.minutes = 0;
+      }
+      break;
+    case 2:
+      clock.t.seconds = -1;
+      break;
+    case 3:
+      clock.dayOfWeek++;
+      if (clock.dayOfWeek == 7) {
+        clock.dayOfWeek = 0;
+      }
+      break;
+    case 4:
+      clock.day++;
+      if(clock.day == 32){
+        clock.day = 1;
+      }
       break;
   }
 }
@@ -175,7 +221,7 @@ void updateDate(Clock &c) {
   if (c.t.hours == 24) {
     c.dayOfWeek++;
     c.day++;
-    if (c.dayOfWeek == 8) {
+    if (c.dayOfWeek == 7) {
       c.dayOfWeek = 0;
     }
     if (c.day == 32) {
@@ -201,6 +247,8 @@ void setDisplay() {
 
       break;
     case 3:
+      displayTime(clock.t, 1);
+      displayDate(clock);
       lcd.setCursor(11, 1);
       lcd.print("(SET)");
       break;
