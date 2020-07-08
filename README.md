@@ -1,2 +1,2 @@
 # clock
-Arduino based clock with stowatch, timer, date and alarm function
+Arduino based clock with stopwatch, timer, date and alarm function
