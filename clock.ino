@@ -45,8 +45,7 @@ void loop() {
   currentTime = millis();
   if (currentTime - clock.tick >= 1000) {
     clock.tick = currentTime;
-    updateTime(clock.t);
-    updateDate(clock);
+    updateTime(clock.t, true);
     if (mode == 0 || mode == 3) {
       displayTime(clock.t, 1);
       displayDate(clock);
@@ -58,7 +57,7 @@ void loop() {
     stopwatch.centiSeconds++;
     if (stopwatch.centiSeconds == 100) {
       stopwatch.centiSeconds = 0;
-      updateTime(stopwatch.t);
+      updateTime(stopwatch.t, false);
       if (mode == 1) {
         displayTime(stopwatch.t, 1);
         displayCentiSeconds(stopwatch.centiSeconds, 1);
@@ -202,7 +201,7 @@ void setTime(){
   }
 }
 
-void updateTime(Time &t) {
+void updateTime(Time &t, boolean withDate) {
   t.seconds++;
   if (t.seconds == 60) {
     t.seconds = 0;
@@ -213,20 +212,21 @@ void updateTime(Time &t) {
     }
     if (t.hours == 24) {
       t.hours = 0;
+      if(withDate){
+        updateDate();
+      }
     }
   }
 }
 
-void updateDate(Clock &c) {
-  if (c.t.hours == 24) {
-    c.dayOfWeek++;
-    c.day++;
-    if (c.dayOfWeek == 7) {
-      c.dayOfWeek = 0;
-    }
-    if (c.day == 32) {
-      c.day = 1;
-    }
+void updateDate() {
+  clock.dayOfWeek++;
+  clock.day++;
+  if (clock.dayOfWeek == 7) {
+    clock.dayOfWeek = 0;
+  }
+  if (clock.day == 32) {
+    clock.day = 1;
   }
 }
 
