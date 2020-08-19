@@ -1,6 +1,7 @@
 #include <LiquidCrystal.h>
 
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+const int buzzer = 6;
 
 struct Time {
   byte hours;
@@ -13,6 +14,8 @@ struct Clock {
   unsigned long tick;
   byte day;
   byte dayOfWeek;
+  byte month;
+  byte year;
 } clock;
 
 struct Stopwatch {
@@ -38,6 +41,7 @@ void setup() {
   resetStopwatch();
   mode = 0;
   setDisplay();
+  pinMode(buzzer, OUTPUT);
 }
 
 void loop() {
@@ -70,8 +74,12 @@ void loop() {
   if (currentTime - debounce < 650) {
     buttons = 1023;
   }
+  if (currentTime - debounce > 200) {
+    noTone(buzzer);
+  }
   if(buttons < 900){
     debounce = millis();
+    tone(buzzer, 1000);
   }
   if (buttons > 600 && buttons < 700) {
       mode++;
@@ -259,33 +267,41 @@ void displayDate(Clock c) {
   lcd.setCursor(0, 0);
   switch (c.dayOfWeek) {
     case 0:
-      lcd.print("Monday   ");
+      lcd.print("Mon");
       break;
     case 1:
-      lcd.print("Tuesday  ");
+      lcd.print("Tue");
       break;
     case 2:
-      lcd.print("Wednesday");
+      lcd.print("Wed");
       break;
     case 3:
-      lcd.print("Thursday ");
+      lcd.print("Thu");
       break;
     case 4:
-      lcd.print("Friday   ");
+      lcd.print("Fri");
       break;
     case 5:
-      lcd.print("Saturday ");
+      lcd.print("Sat");
       break;
     case 6:
-      lcd.print("Sunday   ");
+      lcd.print("Sun");
       break;
   }
-  lcd.setCursor(10, 0);
-  if (c.day < 10) {
-    lcd.print(String(" " + (String)c.day));
+  lcd.setCursor(4, 0);
+  padLeft(c.day);
+  lcd.print(".");
+  padLeft(c.month);
+  lcd.print(".");
+  padLeft(c.year);
+}
+
+void padLeft(int x){
+  if (x < 10) {
+    lcd.print(String("0" + (String)x));
   }
   else {
-    lcd.print(c.day);
+    lcd.print(x);
   }
 }
 
@@ -328,5 +344,3 @@ void displayCentiSeconds(byte centiSeconds, int row) {
     lcd.print(centiSeconds);
   }
 }
-
-//testrqrfewffeggrgggere
