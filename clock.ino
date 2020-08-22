@@ -26,19 +26,56 @@ struct Stopwatch {
 
 struct Alarm{
   boolean isOn;
-  boolean beepIsOn;
+  boolean repeat;
   boolean repeatOnDays[7];
   Time t;
 };
 
 struct Timer{
   boolean isCounting;
-  boolean beepIsOn;
   unsigned long tick;
   Time t;
+  Time lastTimer;
 } timer;
 
+const byte bellIcon[8] = {
+  0b00100,
+  0b01110,
+  0b01110,
+  0b01110,
+  0b11111,
+  0b00000,
+  0b00100,
+  0b00000
+};
 
+const byte yesIcon[8] = {
+  0b00000,
+  0b00001,
+  0b00011,
+  0b10110,
+  0b11100,
+  0b01000,
+  0b00000,
+  0b00000
+};
+
+const byte noIcon[8] = {
+  0b00000,
+  0b10001,
+  0b01010,
+  0b00100,
+  0b01010,
+  0b10001,
+  0b00000,
+  0b00000
+};
+
+char weekAlarm[7] = {109, 116, 119, 116, 102, 115, 115};
+
+const byte no = 0;
+const byte yes = 1;
+const byte bell = 7;
 //modes:
 const byte clk = 0;
 const byte stp = 1;
@@ -51,10 +88,13 @@ unsigned long currentTick;
 unsigned long debounce;
 byte mode;
 byte set;
-byte blinkSwitch;
 byte perpetualCal[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 const int buzzer = 6;
 int buttons;
+boolean screenNeedRefresh;
+boolean screenNeedCleaning;
+boolean beepIsOn;
+Alarm alarm1, alarm2;
 
 void setup() {
   lcd.begin(16, 2);
@@ -66,57 +106,68 @@ void setup() {
   clock.year = 2020;
   clock.dayOfWeek = 0;
   clock.tick = 0;
+  isLeapYear();
   resetStopwatch();
   mode = clk;
-  pinMode(buzzer, OUTPUT);
-  setDisplay();
+  lcd.createChar(no, noIcon);
+  lcd.createChar(yes, yesIcon);
+  lcd.createChar(bell, bellIcon);
 }
 
 void loop() {
   buttons = analogRead(A1);
+  screenNeedRefresh = screenNeedCleaning = false;
   currentTick = millis();
-  if ((mode == tset || mode == tim) && currentTick - clock.tick >= 1000) {
-    blink();
-  }
   if (currentTick - clock.tick >= 1000) {
     updateClock();
-    setDisplay();
+    screenNeedRefresh = true;
   }
   if (stopwatch.isRunning && currentTick - stopwatch.tick >= 10) {
     updateStopwatch();
+    if(mode == stp) screenNeedRefresh = true;
   }
-  if (timer.isCounting || timer.beepIsOn && currentTick - timer.tick >= 1000){
-    if(timer.isCounting) updateTimer();
-    else displayTim();
+  if (timer.isCounting && currentTick - timer.tick >= 1000){
+    updateTimer();
+    if(mode == tim) screenNeedRefresh = true;
   }
-  if ((mode == tset || mode == tim || timer.beepIsOn) && currentTick - clock.tick >= 500) {
+  if ((mode == tset || mode == tim || beepIsOn) && currentTick - clock.tick >= 500) {
     blink();
+    if(beepIsOn)tone(buzzer, 1000, 100);
   }
   if (currentTick - debounce < 650) {
     buttons = 1023;
   }
-  if (currentTick - debounce > 200) {
-    noTone(buzzer);
-  }
   if(buttons < 900){
     debounce = millis();
-    tone(buzzer, 1000);
+    tone(buzzer, 1000, 200);
+    screenNeedRefresh = true;
   }
-  if (buttons > 600 && buttons < 700) {
-      mode++;
-      if (mode == (tset + 1)) {
-        mode = 0;
-      }
-      set = 0;
-      setDisplay();
+  if (buttons > 600 && buttons < 900) {
+    modeBtn();
   }
-  else if (buttons > 500 && buttons < 600) {
+  else if (buttons > 50 && buttons < 600) {
     startSetBtn();
   }
   else if (buttons < 50) {
     resetSelectBtn();
   }
+  if(screenNeedRefresh) setDisplay(screenNeedCleaning);
 }
+
+void modeBtn(){
+  if(!beepIsOn){
+    mode++;
+    if (mode == (tset + 1)) {
+     mode = 0;
+    }
+    if(mode == tim && (timer.isCounting || !isTimeEmpty(timer.t))) set = 3;
+    else
+    set = 0;
+    screenNeedCleaning = true;
+  }
+}
+
+
 
 void updateTimer(){
   timer.tick = currentTick;
@@ -133,19 +184,17 @@ void updateTimer(){
     timer.t.minutes = 59;
   }
   else{
-    timer.beepIsOn = true;
+    beepIsOn = true;
     timer.isCounting = false;
-    lcd.print("alarm");
-  }
-  if(mode == tim){
-    setDisplay();
+    set = 3;
+    mode = tim;
+    screenNeedRefresh = screenNeedCleaning = true;
   }
 }
 
 void updateClock(){
   clock.tick = currentTick;
   updateTime(clock.t, true);
-  if (mode == clk || mode == tset) setDisplay();
 }
 
 void updateStopwatch(){
@@ -154,9 +203,6 @@ void updateStopwatch(){
   if (stopwatch.centiSeconds == 100) {
     stopwatch.centiSeconds = 0;
     updateTime(stopwatch.t, false);
-  }
-  if (mode == stp) {
-    setDisplay();
   }
 }
 
@@ -192,7 +238,11 @@ void startSetBtn() {
       startLapStopwatch();
       break;
     case tim:
-      setTimer();
+      if (!beepIsOn) setTimer();
+      else {
+        beepIsOn = false;
+        timer.t = timer.lastTimer;
+      }
       break;
     case tset:
       setTime();
@@ -209,9 +259,11 @@ void resetSelectBtn() {
       resetStopwatch();
       break;
     case tim:
-      set++;
-      if(set == 5){
-        set = 0;
+      if(!beepIsOn){
+        set++;
+        if(set == 5){
+          set = 0;
+        }
       }
       break;
     case tset:
@@ -221,7 +273,7 @@ void resetSelectBtn() {
       }
       break;
   }
-  setDisplay();
+  setDisplay(false);
 }
 
 void blink(){
@@ -260,7 +312,7 @@ void blinkClk(){
 }
 
 void blinkTim(){
-  if(timer.beepIsOn){
+  if(beepIsOn){
     lcd.setCursor(10, 0);
     lcd.print("      ");
   }
@@ -337,17 +389,26 @@ void setTime(){
       if (clock.month == 13) {
         clock.month = 1;
       }
+     if(clock.day > (perpetualCal[clock.month - 1] + 1)){
+        clock.day = perpetualCal[clock.month - 1];
+      }
       break;
     case 6:
       clock.year++;
       if (clock.year == 2031) {
         clock.year = 2020;
       }
+      isLeapYear();
       break;
     default:
       setHoursMinutes(clock.t);
       break;
   }
+}
+
+boolean isTimeEmpty(Time t){
+  if (t.hours != 0 || t.minutes != 0 || t.seconds != 0) return false;
+  else return true;
 }
 
 void setTimer(){
@@ -359,9 +420,10 @@ void setTimer(){
       }
       break;
     case 3:
-      if(!timer.isCounting && (timer.t.hours != 0 || timer.t.minutes != 0 || timer.t.seconds != 0)){
+      if(!timer.isCounting && !isTimeEmpty(timer.t)){
         timer.isCounting = true;
         timer.tick = millis();
+        timer.lastTimer = timer.t;
       }
       else{
         timer.isCounting = false;
@@ -401,50 +463,68 @@ void updateDate() {
   if (clock.dayOfWeek == 7) {
     clock.dayOfWeek = 0;
   }
-  if (clock.day == 32) {
+  if (clock.day == (perpetualCal[clock.month - 1] + 1)) {
     clock.day = 1;
-  }
-}
-
-void setDisplay() {
-  lcd.clear();
-  if(!timer.beepIsOn){
-    switch (mode) {
-      case clk:
-        displayClk();
-        break;
-      case stp:
-        displayStp();
-        break;
-      case tim:
-        displayTim();
-        break;
-      case tset:
-        displayClk();
-        lcd.setCursor(11, 1);
-        lcd.print("(SET)");
-        break;
+    clock.month ++;
+    if(clock.month == 13){
+      clock.month = 1;
+      clock.year++;
+      isLeapYear();
     }
   }
 }
 
+void setDisplay(boolean clear) {
+  if(clear) lcd.clear();
+  switch (mode) {
+    case clk:
+      displayClk();
+      break;
+    case stp:
+      displayStp();
+      break;
+    case tim:
+      displayTim();
+      break;
+    case tset:
+      displayTset();
+      break;
+    case alm1:
+      displayAlm(alarm1, 1);
+      break;
+    case alm2:
+      displayAlm(alarm2, 2);
+      break;
+  }
+}
+
 void displayClk(){
-  displayTime(clock.t, 1);
+  displayTime(clock.t, 1, true);
   displayDate(clock);
+  if(alarm1.isOn){
+    lcd.setCursor(10, 1);
+    lcd.write(byte(bell));
+    lcd.print("1");
+  }
+  if(alarm2.isOn){
+    lcd.setCursor(13, 1);
+    lcd.write(byte(bell));
+    lcd.print("2");
+  }
 }
 
 void displayStp(){
   lcd.setCursor(0, 0);
   lcd.print("Stopwatch:      ");
-  displayTime(stopwatch.t, 1);
+  displayTime(stopwatch.t, 1, true);
   displayCentiSeconds(stopwatch.centiSeconds, 1);
 }
 
 void displayTim(){
-  displayTime(timer.t, 1);
+  displayTime(timer.t, 1, true);
   lcd.setCursor(0, 0);
   lcd.print("Timer:     ");
-  if(!timer.beepIsOn){
+  if(!beepIsOn){
     lcd.setCursor(11, 0);
     if(timer.isCounting){
       lcd.print("Stop ");
@@ -461,8 +541,39 @@ void displayTim(){
   }
 }
 
+void displayAlm(Alarm a, byte number){
+  lcd.setCursor(1, 0);
+  for(int i = 0; i < 7; i++){
+    if(a.repeatOnDays[i]){
+      lcd.print((String)(weekAlarm[i] + (65 - 97)) + " ");
+    }
+    else{
+      lcd.print((String)weekAlarm[i] + " ");
+    }
+  }
+  displayTime(a.t, 1, false);
+  lcd.setCursor(6, 1);
+  lcd.print("rpt:");
+  if(a.repeat){
+    lcd.write(byte(yes));
+  }
+  else{
+    lcd.write(byte(no));
+  }
+  lcd.setCursor(12, 1);
+  lcd.write(byte(bell));
+  lcd.print((String)number + ":");
+  if(a.isOn){
+    lcd.write(byte(yes));
+  }
+  else{
+    lcd.write(byte(no));
+  }
+}
+
 void displayTset(){
-  displayClk();
+  displayTime(clock.t, 1, true);
+  displayDate(clock);
   lcd.setCursor(11, 1);
   lcd.print("(SET)");
 }
@@ -509,27 +620,29 @@ void padLeft(int x){
   }
 }
 
-void isLeapYear(Clock c){
-  if((c.year%4 == 0 && c.year%100) || c.year%400 == 0){
+void isLeapYear(){
+  if((clock.year%4 == 0 && clock.year%100) || clock.year%400 == 0){
     perpetualCal[1] = 29;
   }
   else{
     perpetualCal[1] = 28;
-    if(c.month == 2 && c.day == 29) c.day = 28;
+    if(clock.month == 2 && clock.day == 29) clock.day = 28;
   }
 }
 
-void displayTime(Time t, int row) {
+void displayTime(Time t, int row, boolean showSeconds) {
   lcd.setCursor(0, row);
   padLeft(t.hours);
   lcd.setCursor(2, row);
   lcd.print(":");
   lcd.setCursor(3, row);
   padLeft(t.minutes);
-  lcd.setCursor(5, row);
-  lcd.print(":");
-  lcd.setCursor(6, row);
-  padLeft(t.seconds);
+  if(showSeconds){
+    lcd.setCursor(5, row);
+    lcd.print(":");
+    lcd.setCursor(6, row);
+    padLeft(t.seconds);
+  }
 }
 
 void displayCentiSeconds(byte centiSeconds, int row) {
